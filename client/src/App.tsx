@@ -10,6 +10,7 @@ import ProjectBuilder from "./pages/ProjectBuilder";
 import Projects from "./pages/Projects";
 import Templates from "./pages/Templates";
 import VersionControl from "./pages/VersionControl";
+import Settings from "./pages/Settings";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/templates" component={Templates} />
       <Route path="/project/:id" component={ProjectBuilder} />
       <Route path="/project/:id/versions" component={VersionControl} />
+      <Route path="/settings" component={Settings} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

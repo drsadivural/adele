@@ -18,7 +18,8 @@ import {
   Rocket,
   Code2,
   Loader2,
-  LogOut
+  LogOut,
+  Settings
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
@@ -85,6 +86,11 @@ export default function Dashboard() {
             <span className="text-sm text-muted-foreground hidden sm:block">
               {user?.name || user?.email}
             </span>
+            <Link href="/settings">
+              <Button variant="ghost" size="sm">
+                <Settings className="w-4 h-4" />
+              </Button>
+            </Link>
             <Button variant="ghost" size="sm" onClick={() => logout()}>
               <LogOut className="w-4 h-4" />
             </Button>

@@ -68,13 +68,48 @@ Visual git-like version control system:
 
 ### Template Library
 
-Pre-built application templates for rapid development:
-- E-Commerce platforms
-- SaaS applications
-- CRM systems
-- Social networks
-- Content management systems
-- And more...
+Pre-built application templates for rapid development across 20+ categories:
+- **Business**: CRM, E-Commerce, SaaS, Marketplace, Inventory
+- **Healthcare**: Patient Management, Telemedicine
+- **Finance**: Finance Tracker, Invoice & Billing, Loan Management
+- **Education**: LMS, School Management, Online Exam Platform
+- **Real Estate**: Property Listing, Property Management
+- **HR**: HRMS, Recruitment Portal
+- **Logistics**: Fleet Management, Delivery Platform
+- **Restaurant**: POS System, Food Ordering
+- **Fitness**: Gym Management, Fitness Tracker
+- **Legal**: Law Firm Management, Contract Management
+- **Non-Profit**: Donation Platform, Volunteer Management
+
+### TTS Engine Configuration
+
+Configurable Text-to-Speech with multiple provider support:
+- Google Cloud TTS
+- ElevenLabs
+- Azure TTS
+- Amazon Polly
+- OpenAI TTS
+
+### Biometric Registration
+
+Advanced user identification features:
+- Voice sample registration with quality scoring
+- Face photo registration with detection
+- Biometric login option
+- Personalized proactive communication
+
+### Tool Connections
+
+Integrate with your favorite tools and services:
+- **Version Control**: GitHub, GitLab, Bitbucket
+- **Communication**: Slack, Discord, Microsoft Teams
+- **Databases**: PostgreSQL, MySQL, MongoDB, Redis
+- **Cloud Storage**: AWS S3, Google Cloud Storage, Azure Blob
+- **Deployment**: Vercel, Netlify, Railway, Heroku, Docker Hub
+- **AI Services**: OpenAI, Anthropic, Google AI
+- **Business Tools**: Stripe, Twilio, SendGrid
+- **Productivity**: Notion, Linear, Jira, Figma
+- **Custom API Integration**
 
 ## Architecture
 
@@ -226,6 +261,26 @@ ADELE exposes a tRPC API for all operations:
 ### Voice Routes
 - `voice.transcribe` - Transcribe audio
 - `voice.processCommand` - Process voice command
+
+### TTS Routes
+- `tts.getProviders` - Get available TTS providers
+- `tts.synthesize` - Synthesize speech from text
+- `tts.setDefault` - Set default TTS provider
+
+### Biometric Routes
+- `biometrics.registerVoice` - Register voice sample
+- `biometrics.registerFace` - Register face photo
+- `biometrics.verify` - Verify biometric data
+
+### Tool Connection Routes
+- `toolConnections.list` - List user's connections
+- `toolConnections.connect` - Connect a new tool
+- `toolConnections.disconnect` - Disconnect a tool
+- `toolConnections.test` - Test connection
+
+### User Settings Routes
+- `userSettings.get` - Get user settings
+- `userSettings.update` - Update user settings
 
 ## Contributing
 

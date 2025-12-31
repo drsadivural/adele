@@ -278,3 +278,168 @@ export const voiceCommands = mysqlTable("voice_commands", {
 
 export type VoiceCommand = typeof voiceCommands.$inferSelect;
 export type InsertVoiceCommand = typeof voiceCommands.$inferInsert;
+
+
+/**
+ * TTS Provider Settings - configurable text-to-speech engines
+ */
+export const ttsProviders = mysqlTable("tts_providers", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  provider: mysqlEnum("provider", ["google", "elevenlabs", "azure", "amazon", "openai"]).notNull(),
+  apiKey: varchar("apiKey", { length: 500 }),
+  apiEndpoint: varchar("apiEndpoint", { length: 500 }),
+  config: json("config").$type<{
+    voiceId?: string;
+    languageCode?: string;
+    speakingRate?: number;
+    pitch?: number;
+    volumeGainDb?: number;
+    sampleRateHertz?: number;
+    model?: string;
+  }>(),
+  isDefault: boolean("isDefault").default(false).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TtsProvider = typeof ttsProviders.$inferSelect;
+export type InsertTtsProvider = typeof ttsProviders.$inferInsert;
+
+/**
+ * User Biometrics - voice and face registration
+ */
+export const userBiometrics = mysqlTable("user_biometrics", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  biometricType: mysqlEnum("biometricType", ["voice", "face"]).notNull(),
+  dataUrl: varchar("dataUrl", { length: 500 }), // S3 URL for voice sample or face photo
+  embedding: json("embedding").$type<number[]>(), // Vector embedding for recognition
+  metadata: json("metadata").$type<{
+    duration?: number; // For voice samples
+    quality?: number;
+    format?: string;
+    dimensions?: { width: number; height: number }; // For face photos
+  }>(),
+  isVerified: boolean("isVerified").default(false).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserBiometric = typeof userBiometrics.$inferSelect;
+export type InsertUserBiometric = typeof userBiometrics.$inferInsert;
+
+/**
+ * Tool Connections - external service integrations
+ */
+export const toolConnections = mysqlTable("tool_connections", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  toolType: mysqlEnum("toolType", [
+    "github",
+    "gitlab",
+    "bitbucket",
+    "slack",
+    "discord",
+    "teams",
+    "postgresql",
+    "mysql",
+    "mongodb",
+    "redis",
+    "aws_s3",
+    "gcp_storage",
+    "azure_blob",
+    "vercel",
+    "netlify",
+    "railway",
+    "heroku",
+    "docker_hub",
+    "openai",
+    "anthropic",
+    "google_ai",
+    "stripe",
+    "twilio",
+    "sendgrid",
+    "notion",
+    "linear",
+    "jira",
+    "figma",
+    "custom_api"
+  ]).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  credentials: json("credentials").$type<{
+    apiKey?: string;
+    accessToken?: string;
+    refreshToken?: string;
+    clientId?: string;
+    clientSecret?: string;
+    webhookUrl?: string;
+    connectionString?: string;
+    host?: string;
+    port?: number;
+    username?: string;
+    password?: string;
+  }>(),
+  config: json("config").$type<{
+    baseUrl?: string;
+    organization?: string;
+    repository?: string;
+    workspace?: string;
+    channel?: string;
+    database?: string;
+    bucket?: string;
+    region?: string;
+    headers?: Record<string, string>;
+  }>(),
+  scopes: json("scopes").$type<string[]>(),
+  status: mysqlEnum("status", ["connected", "disconnected", "error", "pending"]).default("pending").notNull(),
+  lastSyncAt: timestamp("lastSyncAt"),
+  errorMessage: text("errorMessage"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ToolConnection = typeof toolConnections.$inferSelect;
+export type InsertToolConnection = typeof toolConnections.$inferInsert;
+
+/**
+ * User Settings - extended user preferences
+ */
+export const userSettings = mysqlTable("user_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  theme: mysqlEnum("theme", ["light", "dark", "system"]).default("system").notNull(),
+  language: varchar("language", { length: 10 }).default("en").notNull(),
+  timezone: varchar("timezone", { length: 100 }).default("UTC").notNull(),
+  voiceEnabled: boolean("voiceEnabled").default(true).notNull(),
+  voiceLanguage: varchar("voiceLanguage", { length: 10 }).default("en").notNull(),
+  ttsEnabled: boolean("ttsEnabled").default(true).notNull(),
+  ttsProviderId: int("ttsProviderId"),
+  biometricLoginEnabled: boolean("biometricLoginEnabled").default(false).notNull(),
+  notifications: json("notifications").$type<{
+    email: boolean;
+    push: boolean;
+    slack: boolean;
+    projectUpdates: boolean;
+    deploymentAlerts: boolean;
+    collaborationInvites: boolean;
+  }>(),
+  editorSettings: json("editorSettings").$type<{
+    fontSize: number;
+    tabSize: number;
+    wordWrap: boolean;
+    minimap: boolean;
+    lineNumbers: boolean;
+    autoSave: boolean;
+  }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserSetting = typeof userSettings.$inferSelect;
+export type InsertUserSetting = typeof userSettings.$inferInsert;

@@ -12,7 +12,11 @@ import {
   appTemplates, InsertAppTemplate, AppTemplate,
   projectVersions, InsertProjectVersion, ProjectVersion,
   collaborationSessions, InsertCollaborationSession, CollaborationSession,
-  voiceCommands, InsertVoiceCommand, VoiceCommand
+  voiceCommands, InsertVoiceCommand, VoiceCommand,
+  ttsProviders, InsertTtsProvider, TtsProvider,
+  userBiometrics, InsertUserBiometric, UserBiometric,
+  toolConnections, InsertToolConnection, ToolConnection,
+  userSettings, InsertUserSetting, UserSetting
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -484,4 +488,200 @@ export async function getVoiceCommandsByProject(projectId: number): Promise<Voic
   return db.select().from(voiceCommands)
     .where(eq(voiceCommands.projectId, projectId))
     .orderBy(desc(voiceCommands.createdAt));
+}
+
+
+// ============ TTS PROVIDER QUERIES ============
+
+export async function createTtsProvider(provider: InsertTtsProvider): Promise<TtsProvider | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // If setting as default, unset other defaults
+  if (provider.isDefault) {
+    await db.update(ttsProviders).set({ isDefault: false });
+  }
+  
+  const result = await db.insert(ttsProviders).values(provider);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(ttsProviders).where(eq(ttsProviders.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getTtsProviders(userId?: number): Promise<TtsProvider[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  if (userId) {
+    return db.select().from(ttsProviders)
+      .where(and(eq(ttsProviders.createdBy, userId), eq(ttsProviders.isActive, true)))
+      .orderBy(desc(ttsProviders.isDefault));
+  }
+  
+  return db.select().from(ttsProviders)
+    .where(eq(ttsProviders.isActive, true))
+    .orderBy(desc(ttsProviders.isDefault));
+}
+
+export async function getDefaultTtsProvider(): Promise<TtsProvider | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(ttsProviders)
+    .where(and(eq(ttsProviders.isDefault, true), eq(ttsProviders.isActive, true)))
+    .limit(1);
+  return result[0] || null;
+}
+
+export async function updateTtsProvider(id: number, data: Partial<InsertTtsProvider>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  if (data.isDefault) {
+    await db.update(ttsProviders).set({ isDefault: false });
+  }
+  
+  await db.update(ttsProviders).set(data).where(eq(ttsProviders.id, id));
+}
+
+export async function deleteTtsProvider(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(ttsProviders).set({ isActive: false }).where(eq(ttsProviders.id, id));
+}
+
+// ============ USER BIOMETRIC QUERIES ============
+
+export async function createUserBiometric(biometric: InsertUserBiometric): Promise<UserBiometric | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(userBiometrics).values(biometric);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(userBiometrics).where(eq(userBiometrics.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getUserBiometrics(userId: number): Promise<UserBiometric[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(userBiometrics)
+    .where(and(eq(userBiometrics.userId, userId), eq(userBiometrics.isActive, true)));
+}
+
+export async function getAllActiveBiometrics(type?: "voice" | "face"): Promise<UserBiometric[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  if (type) {
+    return db.select().from(userBiometrics)
+      .where(and(eq(userBiometrics.biometricType, type), eq(userBiometrics.isActive, true)));
+  }
+  
+  return db.select().from(userBiometrics).where(eq(userBiometrics.isActive, true));
+}
+
+export async function updateUserBiometric(id: number, data: Partial<InsertUserBiometric>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(userBiometrics).set(data).where(eq(userBiometrics.id, id));
+}
+
+export async function deleteUserBiometric(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(userBiometrics).set({ isActive: false }).where(eq(userBiometrics.id, id));
+}
+
+// ============ TOOL CONNECTION QUERIES ============
+
+export async function createToolConnection(connection: InsertToolConnection): Promise<ToolConnection | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(toolConnections).values(connection);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(toolConnections).where(eq(toolConnections.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getUserToolConnections(userId: number): Promise<ToolConnection[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(toolConnections)
+    .where(and(eq(toolConnections.userId, userId), eq(toolConnections.isActive, true)))
+    .orderBy(desc(toolConnections.updatedAt));
+}
+
+export async function getToolConnection(id: number): Promise<ToolConnection | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(toolConnections).where(eq(toolConnections.id, id)).limit(1);
+  return result[0] || null;
+}
+
+export async function getToolConnectionByType(userId: number, toolType: string): Promise<ToolConnection | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(toolConnections)
+    .where(and(
+      eq(toolConnections.userId, userId),
+      eq(toolConnections.toolType, toolType as any),
+      eq(toolConnections.isActive, true)
+    ))
+    .limit(1);
+  return result[0] || null;
+}
+
+export async function updateToolConnection(id: number, data: Partial<InsertToolConnection>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(toolConnections).set(data).where(eq(toolConnections.id, id));
+}
+
+export async function deleteToolConnection(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(toolConnections).set({ isActive: false }).where(eq(toolConnections.id, id));
+}
+
+// ============ USER SETTINGS QUERIES ============
+
+export async function getUserSettings(userId: number): Promise<UserSetting | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(userSettings).where(eq(userSettings.userId, userId)).limit(1);
+  return result[0] || null;
+}
+
+export async function upsertUserSettings(userId: number, settings: Partial<InsertUserSetting>): Promise<UserSetting | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const existing = await getUserSettings(userId);
+  
+  if (existing) {
+    await db.update(userSettings).set(settings).where(eq(userSettings.userId, userId));
+  } else {
+    await db.insert(userSettings).values({ userId, ...settings });
+  }
+  
+  return getUserSettings(userId);
+}
+
+export async function updateUserSettings(userId: number, data: Partial<InsertUserSetting>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(userSettings).set(data).where(eq(userSettings.userId, userId));
 }
