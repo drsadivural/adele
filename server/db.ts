@@ -16,7 +16,14 @@ import {
   ttsProviders, InsertTtsProvider, TtsProvider,
   userBiometrics, InsertUserBiometric, UserBiometric,
   toolConnections, InsertToolConnection, ToolConnection,
-  userSettings, InsertUserSetting, UserSetting
+  userSettings, InsertUserSetting, UserSetting,
+  mcpServers, InsertMcpServer, McpServer,
+  mcpTools, InsertMcpTool, McpTool,
+  mcpToolInvocations, InsertMcpToolInvocation, McpToolInvocation,
+  analyticsEvents, InsertAnalyticsEvent, AnalyticsEvent,
+  analyticsMetrics, InsertAnalyticsMetric, AnalyticsMetric,
+  agentPerformance, InsertAgentPerformanceMetric, AgentPerformanceMetric,
+  templateAnalytics, InsertTemplateAnalytic, TemplateAnalytic
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -684,4 +691,287 @@ export async function updateUserSettings(userId: number, data: Partial<InsertUse
   if (!db) return;
   
   await db.update(userSettings).set(data).where(eq(userSettings.userId, userId));
+}
+
+
+// ============ MCP SERVER QUERIES ============
+
+export async function createMcpServer(server: InsertMcpServer): Promise<McpServer | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(mcpServers).values(server);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(mcpServers).where(eq(mcpServers.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getUserMcpServers(userId: number): Promise<McpServer[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(mcpServers)
+    .where(and(eq(mcpServers.userId, userId), eq(mcpServers.isActive, true)))
+    .orderBy(desc(mcpServers.updatedAt));
+}
+
+export async function getMcpServer(id: number): Promise<McpServer | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(mcpServers).where(eq(mcpServers.id, id)).limit(1);
+  return result[0] || null;
+}
+
+export async function updateMcpServer(id: number, data: Partial<InsertMcpServer>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(mcpServers).set(data).where(eq(mcpServers.id, id));
+}
+
+export async function deleteMcpServer(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(mcpServers).set({ isActive: false }).where(eq(mcpServers.id, id));
+}
+
+// ============ MCP TOOL QUERIES ============
+
+export async function createMcpTool(tool: InsertMcpTool): Promise<McpTool | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(mcpTools).values(tool);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(mcpTools).where(eq(mcpTools.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getMcpToolsByServerId(serverId: number): Promise<McpTool[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(mcpTools)
+    .where(and(eq(mcpTools.serverId, serverId), eq(mcpTools.isAvailable, true)))
+    .orderBy(desc(mcpTools.usageCount));
+}
+
+export async function getMcpTool(id: number): Promise<McpTool | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(mcpTools).where(eq(mcpTools.id, id)).limit(1);
+  return result[0] || null;
+}
+
+export async function incrementMcpToolUsage(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(mcpTools)
+    .set({ 
+      usageCount: sql`${mcpTools.usageCount} + 1`,
+      lastUsedAt: new Date()
+    })
+    .where(eq(mcpTools.id, id));
+}
+
+// ============ MCP TOOL INVOCATION QUERIES ============
+
+export async function createMcpToolInvocation(invocation: InsertMcpToolInvocation): Promise<McpToolInvocation | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(mcpToolInvocations).values(invocation);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(mcpToolInvocations).where(eq(mcpToolInvocations.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getMcpToolInvocations(toolId: number, limit = 50): Promise<McpToolInvocation[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(mcpToolInvocations)
+    .where(eq(mcpToolInvocations.toolId, toolId))
+    .orderBy(desc(mcpToolInvocations.createdAt))
+    .limit(limit);
+}
+
+// ============ ANALYTICS EVENT QUERIES ============
+
+export async function createAnalyticsEvent(event: InsertAnalyticsEvent): Promise<AnalyticsEvent | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(analyticsEvents).values(event);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(analyticsEvents).where(eq(analyticsEvents.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getAnalyticsEvents(startDate: Date, endDate: Date, eventType?: string): Promise<AnalyticsEvent[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [
+    sql`${analyticsEvents.createdAt} >= ${startDate}`,
+    sql`${analyticsEvents.createdAt} <= ${endDate}`
+  ];
+  
+  if (eventType) {
+    conditions.push(eq(analyticsEvents.eventType, eventType as any));
+  }
+  
+  return db.select().from(analyticsEvents)
+    .where(and(...conditions))
+    .orderBy(desc(analyticsEvents.createdAt))
+    .limit(10000);
+}
+
+// ============ ANALYTICS METRICS QUERIES ============
+
+export async function createAnalyticsMetric(metric: InsertAnalyticsMetric): Promise<AnalyticsMetric | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(analyticsMetrics).values(metric);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(analyticsMetrics).where(eq(analyticsMetrics.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getAnalyticsMetrics(startDate: Date, endDate: Date, metricType?: string): Promise<AnalyticsMetric[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [
+    sql`${analyticsMetrics.metricDate} >= ${startDate}`,
+    sql`${analyticsMetrics.metricDate} <= ${endDate}`
+  ];
+  
+  if (metricType) {
+    conditions.push(eq(analyticsMetrics.metricType, metricType as any));
+  }
+  
+  return db.select().from(analyticsMetrics)
+    .where(and(...conditions))
+    .orderBy(desc(analyticsMetrics.metricDate));
+}
+
+// ============ AGENT PERFORMANCE QUERIES ============
+
+export async function createAgentPerformanceMetric(metric: InsertAgentPerformanceMetric): Promise<AgentPerformanceMetric | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(agentPerformance).values(metric);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(agentPerformance).where(eq(agentPerformance.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getAgentPerformanceMetrics(startDate: Date, endDate: Date, agentType?: string): Promise<AgentPerformanceMetric[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [
+    sql`${agentPerformance.metricDate} >= ${startDate}`,
+    sql`${agentPerformance.metricDate} <= ${endDate}`
+  ];
+  
+  if (agentType) {
+    conditions.push(eq(agentPerformance.agentType, agentType as any));
+  }
+  
+  return db.select().from(agentPerformance)
+    .where(and(...conditions))
+    .orderBy(desc(agentPerformance.metricDate));
+}
+
+// ============ TEMPLATE ANALYTICS QUERIES ============
+
+export async function createTemplateAnalytic(analytic: InsertTemplateAnalytic): Promise<TemplateAnalytic | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(templateAnalytics).values(analytic);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(templateAnalytics).where(eq(templateAnalytics.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getTemplateAnalytics(startDate: Date, endDate: Date, templateId?: number): Promise<TemplateAnalytic[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [
+    sql`${templateAnalytics.metricDate} >= ${startDate}`,
+    sql`${templateAnalytics.metricDate} <= ${endDate}`
+  ];
+  
+  if (templateId) {
+    conditions.push(eq(templateAnalytics.templateId, templateId));
+  }
+  
+  return db.select().from(templateAnalytics)
+    .where(and(...conditions))
+    .orderBy(desc(templateAnalytics.metricDate));
+}
+
+export async function incrementTemplateViews(templateId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  // Try to update existing record for today
+  const existing = await db.select().from(templateAnalytics)
+    .where(and(
+      eq(templateAnalytics.templateId, templateId),
+      sql`DATE(${templateAnalytics.metricDate}) = DATE(${today})`
+    ))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    await db.update(templateAnalytics)
+      .set({ views: sql`${templateAnalytics.views} + 1` })
+      .where(eq(templateAnalytics.id, existing[0].id));
+  } else {
+    await db.insert(templateAnalytics).values({
+      templateId,
+      metricDate: today,
+      views: 1,
+    });
+  }
+}
+
+export async function incrementTemplateUses(templateId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const existing = await db.select().from(templateAnalytics)
+    .where(and(
+      eq(templateAnalytics.templateId, templateId),
+      sql`DATE(${templateAnalytics.metricDate}) = DATE(${today})`
+    ))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    await db.update(templateAnalytics)
+      .set({ uses: sql`${templateAnalytics.uses} + 1` })
+      .where(eq(templateAnalytics.id, existing[0].id));
+  } else {
+    await db.insert(templateAnalytics).values({
+      templateId,
+      metricDate: today,
+      uses: 1,
+    });
+  }
 }

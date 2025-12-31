@@ -443,3 +443,212 @@ export const userSettings = mysqlTable("user_settings", {
 
 export type UserSetting = typeof userSettings.$inferSelect;
 export type InsertUserSetting = typeof userSettings.$inferInsert;
+
+
+/**
+ * MCP Servers - Model Context Protocol server configurations
+ */
+export const mcpServers = mysqlTable("mcp_servers", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  serverType: mysqlEnum("serverType", [
+    "github",
+    "gitlab",
+    "slack",
+    "discord",
+    "postgresql",
+    "mysql",
+    "mongodb",
+    "redis",
+    "s3",
+    "gcs",
+    "filesystem",
+    "browser",
+    "custom"
+  ]).notNull(),
+  transportType: mysqlEnum("transportType", ["stdio", "sse", "websocket"]).default("stdio").notNull(),
+  command: varchar("command", { length: 500 }), // For stdio transport
+  args: json("args").$type<string[]>(),
+  url: varchar("url", { length: 500 }), // For SSE/WebSocket transport
+  env: json("env").$type<Record<string, string>>(),
+  capabilities: json("capabilities").$type<{
+    tools?: boolean;
+    resources?: boolean;
+    prompts?: boolean;
+    sampling?: boolean;
+  }>(),
+  status: mysqlEnum("status", ["connected", "disconnected", "error", "initializing"]).default("disconnected").notNull(),
+  lastConnectedAt: timestamp("lastConnectedAt"),
+  errorMessage: text("errorMessage"),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type McpServer = typeof mcpServers.$inferSelect;
+export type InsertMcpServer = typeof mcpServers.$inferInsert;
+
+/**
+ * MCP Tools - discovered tools from MCP servers
+ */
+export const mcpTools = mysqlTable("mcp_tools", {
+  id: int("id").autoincrement().primaryKey(),
+  serverId: int("serverId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  inputSchema: json("inputSchema").$type<{
+    type: string;
+    properties?: Record<string, unknown>;
+    required?: string[];
+  }>(),
+  isAvailable: boolean("isAvailable").default(true).notNull(),
+  lastUsedAt: timestamp("lastUsedAt"),
+  usageCount: int("usageCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type McpTool = typeof mcpTools.$inferSelect;
+export type InsertMcpTool = typeof mcpTools.$inferInsert;
+
+/**
+ * MCP Tool Invocations - log of tool calls
+ */
+export const mcpToolInvocations = mysqlTable("mcp_tool_invocations", {
+  id: int("id").autoincrement().primaryKey(),
+  toolId: int("toolId").notNull(),
+  userId: int("userId").notNull(),
+  projectId: int("projectId"),
+  input: json("input").$type<Record<string, unknown>>(),
+  output: json("output").$type<unknown>(),
+  status: mysqlEnum("status", ["pending", "running", "success", "error"]).default("pending").notNull(),
+  errorMessage: text("errorMessage"),
+  durationMs: int("durationMs"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type McpToolInvocation = typeof mcpToolInvocations.$inferSelect;
+export type InsertMcpToolInvocation = typeof mcpToolInvocations.$inferInsert;
+
+/**
+ * Analytics Events - tracks all user events for analytics
+ */
+export const analyticsEvents = mysqlTable("analytics_events", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
+  sessionId: varchar("sessionId", { length: 100 }),
+  eventType: mysqlEnum("eventType", [
+    "page_view",
+    "project_created",
+    "project_deployed",
+    "template_used",
+    "agent_task_started",
+    "agent_task_completed",
+    "code_generated",
+    "voice_command",
+    "collaboration_started",
+    "file_downloaded",
+    "tool_connected",
+    "error_occurred",
+    "feedback_submitted",
+    "login",
+    "logout"
+  ]).notNull(),
+  eventData: json("eventData").$type<{
+    projectId?: number;
+    templateId?: number;
+    agentType?: string;
+    duration?: number;
+    success?: boolean;
+    errorType?: string;
+    metadata?: Record<string, unknown>;
+  }>(),
+  pageUrl: varchar("pageUrl", { length: 500 }),
+  referrer: varchar("referrer", { length: 500 }),
+  userAgent: varchar("userAgent", { length: 500 }),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  country: varchar("country", { length: 100 }),
+  city: varchar("city", { length: 100 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
+export type InsertAnalyticsEvent = typeof analyticsEvents.$inferInsert;
+
+/**
+ * Analytics Metrics - aggregated metrics for dashboard
+ */
+export const analyticsMetrics = mysqlTable("analytics_metrics", {
+  id: int("id").autoincrement().primaryKey(),
+  metricType: mysqlEnum("metricType", [
+    "daily_active_users",
+    "monthly_active_users",
+    "projects_created",
+    "projects_deployed",
+    "templates_used",
+    "agent_tasks_completed",
+    "code_lines_generated",
+    "voice_commands_processed",
+    "avg_session_duration",
+    "error_rate",
+    "deployment_success_rate"
+  ]).notNull(),
+  metricValue: int("metricValue").notNull(),
+  metricDate: timestamp("metricDate").notNull(),
+  dimensions: json("dimensions").$type<{
+    templateId?: number;
+    agentType?: string;
+    appType?: string;
+    country?: string;
+  }>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AnalyticsMetric = typeof analyticsMetrics.$inferSelect;
+export type InsertAnalyticsMetric = typeof analyticsMetrics.$inferInsert;
+
+/**
+ * Agent Performance - tracks agent execution metrics
+ */
+export const agentPerformance = mysqlTable("agent_performance", {
+  id: int("id").autoincrement().primaryKey(),
+  agentType: mysqlEnum("agentType", [
+    "coordinator",
+    "research",
+    "coder",
+    "database",
+    "security",
+    "reporter",
+    "browser"
+  ]).notNull(),
+  metricDate: timestamp("metricDate").notNull(),
+  totalTasks: int("totalTasks").default(0).notNull(),
+  successfulTasks: int("successfulTasks").default(0).notNull(),
+  failedTasks: int("failedTasks").default(0).notNull(),
+  avgDurationMs: int("avgDurationMs"),
+  avgTokensUsed: int("avgTokensUsed"),
+  errorTypes: json("errorTypes").$type<Record<string, number>>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AgentPerformanceMetric = typeof agentPerformance.$inferSelect;
+export type InsertAgentPerformanceMetric = typeof agentPerformance.$inferInsert;
+
+/**
+ * Template Analytics - tracks template usage and popularity
+ */
+export const templateAnalytics = mysqlTable("template_analytics", {
+  id: int("id").autoincrement().primaryKey(),
+  templateId: int("templateId").notNull(),
+  metricDate: timestamp("metricDate").notNull(),
+  views: int("views").default(0).notNull(),
+  uses: int("uses").default(0).notNull(),
+  completions: int("completions").default(0).notNull(),
+  avgRating: int("avgRating"),
+  feedbackCount: int("feedbackCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TemplateAnalytic = typeof templateAnalytics.$inferSelect;
+export type InsertTemplateAnalytic = typeof templateAnalytics.$inferInsert;

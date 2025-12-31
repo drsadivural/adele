@@ -11,6 +11,8 @@ import Projects from "./pages/Projects";
 import Templates from "./pages/Templates";
 import VersionControl from "./pages/VersionControl";
 import Settings from "./pages/Settings";
+import Analytics from "./pages/Analytics";
+import McpServers from "./pages/McpServers";
 
 function Router() {
   return (
@@ -22,6 +24,8 @@ function Router() {
       <Route path="/project/:id" component={ProjectBuilder} />
       <Route path="/project/:id/versions" component={VersionControl} />
       <Route path="/settings" component={Settings} />
+      <Route path="/analytics" component={Analytics} />
+      <Route path="/mcp-servers" component={McpServers} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

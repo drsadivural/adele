@@ -1181,6 +1181,363 @@ Keep the response concise and highlight the key actions taken.`;
     }),
   }),
 
+  // ============ MCP SERVER ROUTES ============
+  mcp: router({
+    listServers: protectedProcedure.query(async ({ ctx }) => {
+      return db.getUserMcpServers(ctx.user.id);
+    }),
+
+    getServer: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const server = await db.getMcpServer(input.id);
+        if (!server || server.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
+        }
+        return server;
+      }),
+
+    createServer: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        serverType: z.enum(["github", "gitlab", "slack", "discord", "postgresql", "mysql", "mongodb", "redis", "s3", "gcs", "filesystem", "browser", "custom"]),
+        transportType: z.enum(["stdio", "sse", "websocket"]).default("stdio"),
+        command: z.string().optional(),
+        args: z.array(z.string()).optional(),
+        url: z.string().optional(),
+        env: z.record(z.string(), z.string()).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.createMcpServer({
+          ...input,
+          userId: ctx.user.id,
+          status: "disconnected",
+        });
+      }),
+
+    connectServer: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const server = await db.getMcpServer(input.id);
+        if (!server || server.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
+        }
+        
+        const { mcpManager } = await import("./mcpIntegration");
+        
+        try {
+          await db.updateMcpServer(input.id, { status: "initializing" });
+          
+          const connection = await mcpManager.connect({
+            id: server.id,
+            name: server.name,
+            serverType: server.serverType,
+            transportType: server.transportType,
+            command: server.command || undefined,
+            args: server.args || undefined,
+            url: server.url || undefined,
+            env: server.env || undefined,
+          });
+          
+          const tools = connection.getTools();
+          
+          // Save discovered tools
+          for (const tool of tools) {
+            await db.createMcpTool({
+              serverId: server.id,
+              name: tool.name,
+              description: tool.description,
+              inputSchema: tool.inputSchema,
+            });
+          }
+          
+          await db.updateMcpServer(input.id, {
+            status: "connected",
+            lastConnectedAt: new Date(),
+            capabilities: { tools: true, resources: false, prompts: false },
+          });
+          
+          return { success: true, toolCount: tools.length };
+        } catch (error) {
+          await db.updateMcpServer(input.id, {
+            status: "error",
+            errorMessage: error instanceof Error ? error.message : "Connection failed",
+          });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to connect to MCP server" });
+        }
+      }),
+
+    disconnectServer: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const server = await db.getMcpServer(input.id);
+        if (!server || server.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
+        }
+        
+        const { mcpManager } = await import("./mcpIntegration");
+        await mcpManager.disconnect(input.id);
+        
+        await db.updateMcpServer(input.id, { status: "disconnected" });
+        return { success: true };
+      }),
+
+    deleteServer: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const server = await db.getMcpServer(input.id);
+        if (!server || server.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
+        }
+        
+        await db.deleteMcpServer(input.id);
+        return { success: true };
+      }),
+
+    listTools: protectedProcedure
+      .input(z.object({ serverId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const server = await db.getMcpServer(input.serverId);
+        if (!server || server.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
+        }
+        
+        return db.getMcpToolsByServerId(input.serverId);
+      }),
+
+    invokeTool: protectedProcedure
+      .input(z.object({
+        toolId: z.number(),
+        projectId: z.number().optional(),
+        input: z.record(z.string(), z.unknown()),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const tool = await db.getMcpTool(input.toolId);
+        if (!tool) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Tool not found" });
+        }
+        
+        const server = await db.getMcpServer(tool.serverId);
+        if (!server || server.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Server not found" });
+        }
+        
+        const { mcpManager } = await import("./mcpIntegration");
+        const connection = mcpManager.getConnection(server.id);
+        
+        if (!connection) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Server not connected" });
+        }
+        
+        const startTime = Date.now();
+        
+        try {
+          const result = await connection.callTool(tool.name, input.input);
+          const durationMs = Date.now() - startTime;
+          
+          // Log the invocation
+          await db.createMcpToolInvocation({
+            toolId: tool.id,
+            userId: ctx.user.id,
+            projectId: input.projectId,
+            input: input.input,
+            output: result,
+            status: result.isError ? "error" : "success",
+            durationMs,
+          });
+          
+          // Update tool usage count
+          await db.incrementMcpToolUsage(tool.id);
+          
+          return result;
+        } catch (error) {
+          const durationMs = Date.now() - startTime;
+          
+          await db.createMcpToolInvocation({
+            toolId: tool.id,
+            userId: ctx.user.id,
+            projectId: input.projectId,
+            input: input.input,
+            status: "error",
+            errorMessage: error instanceof Error ? error.message : "Unknown error",
+            durationMs,
+          });
+          
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Tool invocation failed" });
+        }
+      }),
+
+    getAvailableServerTypes: publicProcedure.query(() => {
+      return [
+        { id: "github", name: "GitHub", description: "GitHub repository operations", icon: "github" },
+        { id: "gitlab", name: "GitLab", description: "GitLab repository operations", icon: "gitlab" },
+        { id: "slack", name: "Slack", description: "Slack messaging and channels", icon: "slack" },
+        { id: "discord", name: "Discord", description: "Discord server operations", icon: "discord" },
+        { id: "postgresql", name: "PostgreSQL", description: "PostgreSQL database operations", icon: "database" },
+        { id: "mysql", name: "MySQL", description: "MySQL database operations", icon: "database" },
+        { id: "mongodb", name: "MongoDB", description: "MongoDB database operations", icon: "database" },
+        { id: "redis", name: "Redis", description: "Redis cache operations", icon: "database" },
+        { id: "s3", name: "AWS S3", description: "S3 bucket operations", icon: "cloud" },
+        { id: "gcs", name: "Google Cloud Storage", description: "GCS bucket operations", icon: "cloud" },
+        { id: "filesystem", name: "Filesystem", description: "Local file operations", icon: "folder" },
+        { id: "browser", name: "Browser", description: "Web browser automation", icon: "globe" },
+        { id: "custom", name: "Custom", description: "Custom MCP server", icon: "code" },
+      ];
+    }),
+  }),
+
+  // ============ ANALYTICS ROUTES ============
+  analytics: router({
+    trackEvent: protectedProcedure
+      .input(z.object({
+        eventType: z.enum([
+          "page_view", "project_created", "project_deployed", "template_used",
+          "agent_task_started", "agent_task_completed", "code_generated",
+          "voice_command", "collaboration_started", "file_downloaded",
+          "tool_connected", "error_occurred", "feedback_submitted"
+        ]),
+        eventData: z.object({
+          projectId: z.number().optional(),
+          templateId: z.number().optional(),
+          agentType: z.string().optional(),
+          duration: z.number().optional(),
+          success: z.boolean().optional(),
+          errorType: z.string().optional(),
+          metadata: z.record(z.string(), z.unknown()).optional(),
+        }).optional(),
+        pageUrl: z.string().optional(),
+        referrer: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return db.createAnalyticsEvent({
+          userId: ctx.user.id,
+          eventType: input.eventType,
+          eventData: input.eventData,
+          pageUrl: input.pageUrl,
+          referrer: input.referrer,
+        });
+      }),
+
+    getDashboard: protectedProcedure
+      .input(z.object({
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        // Check if user is admin
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+        }
+        
+        const startDate = input.startDate ? new Date(input.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const endDate = input.endDate ? new Date(input.endDate) : new Date();
+        
+        const [events, metrics, agentPerf, templateStats] = await Promise.all([
+          db.getAnalyticsEvents(startDate, endDate),
+          db.getAnalyticsMetrics(startDate, endDate),
+          db.getAgentPerformanceMetrics(startDate, endDate),
+          db.getTemplateAnalytics(startDate, endDate),
+        ]);
+        
+        // Calculate summary stats
+        const totalUsers = new Set(events.map(e => e.userId)).size;
+        const totalProjects = events.filter(e => e.eventType === "project_created").length;
+        const totalDeployments = events.filter(e => e.eventType === "project_deployed").length;
+        const totalTemplateUses = events.filter(e => e.eventType === "template_used").length;
+        
+        return {
+          summary: {
+            totalUsers,
+            totalProjects,
+            totalDeployments,
+            totalTemplateUses,
+            dateRange: { start: startDate, end: endDate },
+          },
+          events,
+          metrics,
+          agentPerformance: agentPerf,
+          templateStats,
+        };
+      }),
+
+    getAgentPerformance: protectedProcedure
+      .input(z.object({
+        agentType: z.enum(["coordinator", "research", "coder", "database", "security", "reporter", "browser"]).optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+        }
+        
+        const startDate = input.startDate ? new Date(input.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const endDate = input.endDate ? new Date(input.endDate) : new Date();
+        
+        return db.getAgentPerformanceMetrics(startDate, endDate, input.agentType);
+      }),
+
+    getTemplateStats: protectedProcedure
+      .input(z.object({
+        templateId: z.number().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+        }
+        
+        const startDate = input.startDate ? new Date(input.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const endDate = input.endDate ? new Date(input.endDate) : new Date();
+        
+        return db.getTemplateAnalytics(startDate, endDate, input.templateId);
+      }),
+
+    exportReport: protectedProcedure
+      .input(z.object({
+        reportType: z.enum(["summary", "events", "agents", "templates"]),
+        format: z.enum(["json", "csv"]),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+        }
+        
+        const startDate = input.startDate ? new Date(input.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const endDate = input.endDate ? new Date(input.endDate) : new Date();
+        
+        let data;
+        switch (input.reportType) {
+          case "events":
+            data = await db.getAnalyticsEvents(startDate, endDate);
+            break;
+          case "agents":
+            data = await db.getAgentPerformanceMetrics(startDate, endDate);
+            break;
+          case "templates":
+            data = await db.getTemplateAnalytics(startDate, endDate);
+            break;
+          default:
+            data = await db.getAnalyticsMetrics(startDate, endDate);
+        }
+        
+        if (input.format === "csv") {
+          // Convert to CSV
+          if (Array.isArray(data) && data.length > 0) {
+            const headers = Object.keys(data[0]).join(",");
+            const rows = data.map(row => Object.values(row).map(v => JSON.stringify(v)).join(","));
+            return { content: [headers, ...rows].join("\n"), format: "csv" };
+          }
+          return { content: "", format: "csv" };
+        }
+        
+        return { content: JSON.stringify(data, null, 2), format: "json" };
+      }),
+  }),
+
   // ============ USER SETTINGS ROUTES ============
   settings: router({
     get: protectedProcedure.query(async ({ ctx }) => {

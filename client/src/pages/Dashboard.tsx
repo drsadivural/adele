@@ -19,7 +19,8 @@ import {
   Code2,
   Loader2,
   LogOut,
-  Settings
+  Settings,
+  BarChart3
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
@@ -86,8 +87,15 @@ export default function Dashboard() {
             <span className="text-sm text-muted-foreground hidden sm:block">
               {user?.name || user?.email}
             </span>
+            {user?.role === "admin" && (
+              <Link href="/analytics">
+                <Button variant="ghost" size="sm" title="Analytics">
+                  <BarChart3 className="w-4 h-4" />
+                </Button>
+              </Link>
+            )}
             <Link href="/settings">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" title="Settings">
                 <Settings className="w-4 h-4" />
               </Button>
             </Link>

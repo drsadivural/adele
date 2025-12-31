@@ -36,7 +36,8 @@ import {
   FileText,
   CheckSquare,
   Figma,
-  MessageSquare
+  MessageSquare,
+  Server
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
@@ -216,6 +217,10 @@ export default function Settings() {
             <TabsTrigger value="notifications" className="gap-2">
               <Bell className="w-4 h-4" />
               <span className="hidden sm:inline">Notifications</span>
+            </TabsTrigger>
+            <TabsTrigger value="mcp" className="gap-2">
+              <Server className="w-4 h-4" />
+              <span className="hidden sm:inline">MCP</span>
             </TabsTrigger>
           </TabsList>
 
@@ -476,6 +481,35 @@ export default function Settings() {
                       notifications: { ...settings?.notifications, collaborationInvites: checked } 
                     })}
                   />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* MCP Servers */}
+          <TabsContent value="mcp" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>MCP Server Integration</CardTitle>
+                <CardDescription>Connect to Model Context Protocol servers for external tool access</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-center py-8">
+                  <Server className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <p className="text-muted-foreground mb-4">Manage your MCP server connections</p>
+                  <Link href="/mcp-servers">
+                    <Button>
+                      <Server className="w-4 h-4 mr-2" />
+                      Open MCP Server Manager
+                    </Button>
+                  </Link>
+                </div>
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-2">What is MCP?</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Model Context Protocol (MCP) allows ADELE to connect to external services and tools.
+                    Configure servers for GitHub, databases, file systems, and more to extend ADELE's capabilities.
+                  </p>
                 </div>
               </CardContent>
             </Card>

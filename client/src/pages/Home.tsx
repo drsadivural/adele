@@ -20,6 +20,8 @@ import {
   LayoutTemplate
 } from "lucide-react";
 import { Link } from "wouter";
+import { useState } from "react";
+import { DemoVideoModal } from "@/components/DemoVideoModal";
 
 const agents = [
   { name: "Coordinator", icon: Sparkles, color: "agent-coordinator", description: "Orchestrates the entire build process" },
@@ -76,6 +78,7 @@ const features = [
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
+  const [isDemoOpen, setIsDemoOpen] = useState(false);
 
   return (
     <div className="min-h-screen gradient-subtle">
@@ -149,7 +152,12 @@ export default function Home() {
                   </Button>
                 </a>
               )}
-              <Button size="lg" variant="outline" className="h-14 px-8 text-lg">
+              <Button 
+                size="lg" 
+                variant="outline" 
+                className="h-14 px-8 text-lg"
+                onClick={() => setIsDemoOpen(true)}
+              >
                 <Play className="w-5 h-5 mr-2" />
                 Watch Demo
               </Button>
@@ -284,6 +292,9 @@ export default function Home() {
           </p>
         </div>
       </footer>
+
+      {/* Demo Video Modal */}
+      <DemoVideoModal isOpen={isDemoOpen} onClose={() => setIsDemoOpen(false)} />
     </div>
   );
 }
