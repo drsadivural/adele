@@ -13,6 +13,8 @@ import VersionControl from "./pages/VersionControl";
 import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
 import McpServers from "./pages/McpServers";
+import Pricing from "./pages/Pricing";
+import StripeAdmin from "./pages/StripeAdmin";
 
 function Router() {
   return (
@@ -21,11 +23,13 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/projects" component={Projects} />
       <Route path="/templates" component={Templates} />
+      <Route path="/pricing" component={Pricing} />
       <Route path="/project/:id" component={ProjectBuilder} />
       <Route path="/project/:id/versions" component={VersionControl} />
       <Route path="/settings" component={Settings} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/mcp-servers" component={McpServers} />
+      <Route path="/admin/stripe" component={StripeAdmin} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

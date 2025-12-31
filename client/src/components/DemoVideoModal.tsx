@@ -8,16 +8,12 @@ interface DemoVideoModalProps {
   onClose: () => void;
 }
 
-// Demo video chapters/highlights
+// Demo video chapters/highlights - adjusted for actual video duration
 const videoChapters = [
   { time: 0, title: "Introduction", description: "Welcome to ADELE" },
-  { time: 15, title: "Creating a Project", description: "Start a new application project" },
-  { time: 45, title: "Chat Interface", description: "Describe your app in natural language" },
-  { time: 90, title: "Multi-Agent System", description: "Watch AI agents collaborate" },
-  { time: 150, title: "Code Generation", description: "Real-time code generation" },
-  { time: 210, title: "Live Preview", description: "See your app come to life" },
-  { time: 270, title: "Deployment", description: "One-click deployment" },
-  { time: 300, title: "Download & Export", description: "Get your complete codebase" },
+  { time: 2, title: "AI Agents", description: "Multi-agent collaboration" },
+  { time: 4, title: "Code Generation", description: "Real-time code generation" },
+  { time: 6, title: "Live Preview", description: "See your app come to life" },
 ];
 
 export function DemoVideoModal({ isOpen, onClose }: DemoVideoModalProps) {
@@ -166,18 +162,17 @@ export function DemoVideoModal({ isOpen, onClose }: DemoVideoModalProps) {
               Your browser does not support the video tag.
             </video>
 
-            {/* Placeholder overlay when no video */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
-              <div className="text-center">
-                <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center mb-6 mx-auto">
-                  <Play className="h-12 w-12 text-primary ml-1" />
+            {/* Play button overlay when paused */}
+            {!isPlaying && (
+              <div 
+                className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 cursor-pointer"
+                onClick={togglePlay}
+              >
+                <div className="w-20 h-20 rounded-full bg-primary/90 flex items-center justify-center shadow-lg hover:bg-primary transition-colors">
+                  <Play className="h-10 w-10 text-white ml-1" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-2">ADELE Demo</h3>
-                <p className="text-white/70 max-w-md">
-                  Watch how ADELE's multi-agent AI system builds complete applications from natural language descriptions
-                </p>
               </div>
-            </div>
+            )}
 
             {/* Video controls overlay */}
             <div 

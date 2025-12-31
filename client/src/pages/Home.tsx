@@ -91,6 +91,9 @@ export default function Home() {
           </Link>
           
           <div className="flex items-center gap-4">
+            <Link href="/pricing">
+              <Button variant="ghost">Pricing</Button>
+            </Link>
             {loading ? (
               <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
             ) : isAuthenticated ? (

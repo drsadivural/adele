@@ -1606,6 +1606,305 @@ Keep the response concise and highlight the key actions taken.`;
         return db.upsertUserSettings(ctx.user.id, input as any);
       }),
   }),
+
+  // ============ STRIPE / BILLING ROUTES ============
+  billing: router({
+    getSubscription: protectedProcedure.query(async ({ ctx }) => {
+      const subscription = await db.getUserSubscription(ctx.user.id);
+      return subscription || { plan: "free", status: "active" };
+    }),
+
+    createCheckout: protectedProcedure
+      .input(z.object({
+        planId: z.enum(["pro", "enterprise"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { createSubscriptionCheckout } = await import("./stripe/stripeService");
+        const origin = ctx.req.headers.origin || ctx.req.headers.referer?.replace(/\/[^/]*$/, "") || "http://localhost:3000";
+        
+        return createSubscriptionCheckout(
+          ctx.user.id,
+          ctx.user.email || "",
+          ctx.user.name,
+          input.planId,
+          origin
+        );
+      }),
+
+    createPortalSession: protectedProcedure.mutation(async ({ ctx }) => {
+      const subscription = await db.getUserSubscription(ctx.user.id);
+      if (!subscription?.stripeCustomerId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No subscription found" });
+      }
+      
+      const { createPortalSession } = await import("./stripe/stripeService");
+      const origin = ctx.req.headers.origin || ctx.req.headers.referer?.replace(/\/[^/]*$/, "") || "http://localhost:3000";
+      
+      const url = await createPortalSession(subscription.stripeCustomerId, origin);
+      return { url };
+    }),
+
+    cancelSubscription: protectedProcedure
+      .input(z.object({
+        cancelAtPeriodEnd: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const subscription = await db.getUserSubscription(ctx.user.id);
+        if (!subscription?.stripeSubscriptionId) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "No subscription found" });
+        }
+        
+        const { cancelSubscription } = await import("./stripe/stripeService");
+        await cancelSubscription(subscription.stripeSubscriptionId, input.cancelAtPeriodEnd);
+        
+        await db.updateSubscription(subscription.id, {
+          cancelAtPeriodEnd: input.cancelAtPeriodEnd,
+          status: input.cancelAtPeriodEnd ? "active" : "canceled",
+        });
+        
+        return { success: true };
+      }),
+
+    resumeSubscription: protectedProcedure.mutation(async ({ ctx }) => {
+      const subscription = await db.getUserSubscription(ctx.user.id);
+      if (!subscription?.stripeSubscriptionId) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No subscription found" });
+      }
+      
+      const { resumeSubscription } = await import("./stripe/stripeService");
+      await resumeSubscription(subscription.stripeSubscriptionId);
+      
+      await db.updateSubscription(subscription.id, {
+        cancelAtPeriodEnd: false,
+      });
+      
+      return { success: true };
+    }),
+
+    getPaymentHistory: protectedProcedure.query(async ({ ctx }) => {
+      return db.getUserPayments(ctx.user.id);
+    }),
+
+    getPlans: publicProcedure.query(async () => {
+      const { SUBSCRIPTION_PLANS } = await import("./stripe/products");
+      return Object.values(SUBSCRIPTION_PLANS);
+    }),
+  }),
+
+  // ============ STRIPE ADMIN ROUTES ============
+  stripeAdmin: router({
+    getConfig: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+      }
+      return db.getAllStripeConfigs();
+    }),
+
+    updateConfig: protectedProcedure
+      .input(z.object({
+        key: z.string(),
+        value: z.string(),
+        description: z.string().optional(),
+        isEncrypted: z.boolean().default(false),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+        }
+        
+        await db.upsertStripeConfig(
+          input.key,
+          input.value,
+          input.description,
+          input.isEncrypted,
+          ctx.user.id
+        );
+        
+        return { success: true };
+      }),
+
+    deleteConfig: protectedProcedure
+      .input(z.object({ key: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+        }
+        
+        await db.deleteStripeConfig(input.key);
+        return { success: true };
+      }),
+
+    testConnection: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+      }
+      
+      try {
+        const { getStripe } = await import("./stripe/stripeService");
+        const stripe = getStripe();
+        const balance = await stripe.balance.retrieve();
+        
+        return {
+          success: true,
+          message: "Stripe connection successful",
+          balance: balance.available.map(b => ({ amount: b.amount / 100, currency: b.currency })),
+        };
+      } catch (error) {
+        return {
+          success: false,
+          message: error instanceof Error ? error.message : "Failed to connect to Stripe",
+        };
+      }
+    }),
+
+    syncProducts: protectedProcedure.mutation(async ({ ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Admin access required" });
+      }
+      
+      try {
+        const { getStripe } = await import("./stripe/stripeService");
+        const { SUBSCRIPTION_PLANS } = await import("./stripe/products");
+        const stripe = getStripe();
+        
+        const createdProducts = [];
+        
+        for (const [planId, plan] of Object.entries(SUBSCRIPTION_PLANS)) {
+          if (plan.price === 0) continue; // Skip free plan
+          
+          // Create or update product
+          const products = await stripe.products.list({ limit: 100 });
+          let product = products.data.find(p => p.metadata?.plan_id === planId);
+          
+          if (!product) {
+            product = await stripe.products.create({
+              name: `ADELE ${plan.name} Plan`,
+              description: plan.description,
+              metadata: { plan_id: planId },
+            });
+          }
+          
+          // Create price if doesn't exist
+          const prices = await stripe.prices.list({ product: product.id, limit: 100 });
+          let price = prices.data.find(p => p.unit_amount === plan.price * 100 && p.recurring?.interval === "month");
+          
+          if (!price) {
+            price = await stripe.prices.create({
+              product: product.id,
+              unit_amount: plan.price * 100,
+              currency: "usd",
+              recurring: { interval: "month" },
+              metadata: { plan_id: planId },
+            });
+          }
+          
+          createdProducts.push({
+            planId,
+            productId: product.id,
+            priceId: price.id,
+          });
+        }
+        
+        return { success: true, products: createdProducts };
+      } catch (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error instanceof Error ? error.message : "Failed to sync products",
+        });
+      }
+    }),
+  }),
+
+  // ============ ONBOARDING ROUTES ============
+  onboarding: router({
+    getProgress: protectedProcedure.query(async ({ ctx }) => {
+      let progress = await db.getOnboardingProgress(ctx.user.id);
+      if (!progress) {
+        progress = await db.createOnboardingProgress(ctx.user.id);
+      }
+      return progress;
+    }),
+
+    updateStep: protectedProcedure
+      .input(z.object({
+        step: z.number(),
+        completed: z.boolean().default(true),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const progress = await db.getOnboardingProgress(ctx.user.id);
+        if (!progress) {
+          await db.createOnboardingProgress(ctx.user.id);
+        }
+        
+        const completedSteps = progress?.completedSteps || [];
+        if (input.completed && !completedSteps.includes(input.step)) {
+          completedSteps.push(input.step);
+        }
+        
+        await db.updateOnboardingProgress(ctx.user.id, {
+          currentStep: input.step + 1,
+          completedSteps,
+        });
+        
+        return { success: true };
+      }),
+
+    complete: protectedProcedure.mutation(async ({ ctx }) => {
+      await db.completeOnboarding(ctx.user.id);
+      return { success: true };
+    }),
+
+    skip: protectedProcedure.mutation(async ({ ctx }) => {
+      await db.skipOnboarding(ctx.user.id);
+      return { success: true };
+    }),
+
+    getSteps: publicProcedure.query(() => {
+      return [
+        {
+          id: 0,
+          title: "Welcome to ADELE",
+          description: "Let's get you started with AI-powered application building",
+          action: "next",
+        },
+        {
+          id: 1,
+          title: "Create Your First Project",
+          description: "Start by creating a new project or using a template",
+          action: "create_project",
+          targetElement: "[data-onboarding='new-project']",
+        },
+        {
+          id: 2,
+          title: "Meet Your AI Agents",
+          description: "ADELE uses 7 specialized AI agents to build your application",
+          action: "next",
+          highlight: "agents",
+        },
+        {
+          id: 3,
+          title: "Describe Your Application",
+          description: "Use natural language or voice to describe what you want to build",
+          action: "chat",
+          targetElement: "[data-onboarding='chat-input']",
+        },
+        {
+          id: 4,
+          title: "Watch the Magic Happen",
+          description: "See your application come to life in the live preview",
+          action: "next",
+          targetElement: "[data-onboarding='preview']",
+        },
+        {
+          id: 5,
+          title: "Download & Deploy",
+          description: "Get your complete source code and deploy to production",
+          action: "complete",
+          targetElement: "[data-onboarding='deploy']",
+        },
+      ];
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

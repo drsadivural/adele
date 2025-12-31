@@ -98,6 +98,39 @@ Advanced user identification features:
 - Biometric login option
 - Personalized proactive communication
 
+### Stripe Payment Integration
+
+Full subscription billing system:
+- **Free Plan**: 3 projects, basic AI agents, community templates
+- **Pro Plan** ($29/mo): Unlimited projects, all AI agents, premium templates, team collaboration
+- **Enterprise Plan** ($99/mo): Everything in Pro, unlimited team members, SSO, dedicated support
+- Admin panel for Stripe API key management
+- Secure checkout flow via Stripe
+- Customer portal for billing management
+
+### Onboarding Wizard
+
+Guided first-time user experience:
+- Step-by-step interactive tour
+- Spotlight overlays for key features
+- Progress tracking and skip functionality
+- Personalized welcome experience
+
+### MCP Server Integration
+
+Model Context Protocol support for external tools:
+- GitHub, Slack, and database MCP servers
+- Tool discovery and invocation API
+- Connection status monitoring
+
+### Usage Analytics Dashboard
+
+Admin-only analytics for platform insights:
+- User activity metrics
+- Template usage tracking
+- Agent performance analytics
+- Export reports (JSON/CSV)
+
 ### Tool Connections
 
 Integrate with your favorite tools and services:

@@ -23,7 +23,11 @@ import {
   analyticsEvents, InsertAnalyticsEvent, AnalyticsEvent,
   analyticsMetrics, InsertAnalyticsMetric, AnalyticsMetric,
   agentPerformance, InsertAgentPerformanceMetric, AgentPerformanceMetric,
-  templateAnalytics, InsertTemplateAnalytic, TemplateAnalytic
+  templateAnalytics, InsertTemplateAnalytic, TemplateAnalytic,
+  subscriptions, InsertSubscription, Subscription,
+  payments, InsertPayment, Payment,
+  stripeConfig, InsertStripeConfig, StripeConfig,
+  onboardingProgress, InsertOnboardingProgress, OnboardingProgress
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -974,4 +978,179 @@ export async function incrementTemplateUses(templateId: number): Promise<void> {
       uses: 1,
     });
   }
+}
+
+
+// ============ SUBSCRIPTION QUERIES ============
+
+export async function createSubscription(subscription: InsertSubscription): Promise<Subscription | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(subscriptions).values(subscription);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(subscriptions).where(eq(subscriptions.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getUserSubscription(userId: number): Promise<Subscription | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .orderBy(desc(subscriptions.createdAt))
+    .limit(1);
+  return result[0] || null;
+}
+
+export async function getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(subscriptions)
+    .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId))
+    .limit(1);
+  return result[0] || null;
+}
+
+export async function updateSubscription(id: number, data: Partial<InsertSubscription>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(subscriptions).set(data).where(eq(subscriptions.id, id));
+}
+
+export async function updateSubscriptionByStripeId(stripeSubscriptionId: string, data: Partial<InsertSubscription>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(subscriptions).set(data).where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId));
+}
+
+// ============ PAYMENT QUERIES ============
+
+export async function createPayment(payment: InsertPayment): Promise<Payment | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(payments).values(payment);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(payments).where(eq(payments.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getUserPayments(userId: number, limit = 20): Promise<Payment[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(payments)
+    .where(eq(payments.userId, userId))
+    .orderBy(desc(payments.createdAt))
+    .limit(limit);
+}
+
+export async function updatePaymentStatus(paymentIntentId: string, status: "pending" | "succeeded" | "failed" | "refunded"): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(payments).set({ status }).where(eq(payments.stripePaymentIntentId, paymentIntentId));
+}
+
+// ============ STRIPE CONFIG QUERIES ============
+
+export async function getStripeConfig(key: string): Promise<StripeConfig | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(stripeConfig)
+    .where(eq(stripeConfig.configKey, key))
+    .limit(1);
+  return result[0] || null;
+}
+
+export async function getAllStripeConfigs(): Promise<StripeConfig[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(stripeConfig).orderBy(stripeConfig.configKey);
+}
+
+export async function upsertStripeConfig(key: string, value: string, description?: string, isEncrypted = false, updatedBy?: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  const existing = await getStripeConfig(key);
+  
+  if (existing) {
+    await db.update(stripeConfig)
+      .set({ configValue: value, description, isEncrypted, updatedBy })
+      .where(eq(stripeConfig.configKey, key));
+  } else {
+    await db.insert(stripeConfig).values({
+      configKey: key,
+      configValue: value,
+      description,
+      isEncrypted,
+      updatedBy,
+    });
+  }
+}
+
+export async function deleteStripeConfig(key: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.delete(stripeConfig).where(eq(stripeConfig.configKey, key));
+}
+
+// ============ ONBOARDING QUERIES ============
+
+export async function getOnboardingProgress(userId: number): Promise<OnboardingProgress | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(onboardingProgress)
+    .where(eq(onboardingProgress.userId, userId))
+    .limit(1);
+  return result[0] || null;
+}
+
+export async function createOnboardingProgress(userId: number): Promise<OnboardingProgress | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(onboardingProgress).values({
+    userId,
+    currentStep: 0,
+    completedSteps: [],
+  });
+  const insertId = result[0].insertId;
+  const created = await db.select().from(onboardingProgress).where(eq(onboardingProgress.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function updateOnboardingProgress(userId: number, data: Partial<InsertOnboardingProgress>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(onboardingProgress).set(data).where(eq(onboardingProgress.userId, userId));
+}
+
+export async function completeOnboarding(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(onboardingProgress)
+    .set({ completedAt: new Date() })
+    .where(eq(onboardingProgress.userId, userId));
+}
+
+export async function skipOnboarding(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(onboardingProgress)
+    .set({ skipped: true, completedAt: new Date() })
+    .where(eq(onboardingProgress.userId, userId));
 }

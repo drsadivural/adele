@@ -195,3 +195,38 @@
 - [x] Real-time dashboard charts
 - [x] Export analytics reports
 - [x] Admin-only access control
+
+
+## New Features (Phase 5)
+
+### Demo Video
+- [x] Create demo video showcasing ADELE features
+- [x] Upload video to storage
+- [x] Update DemoVideoModal with actual video URL
+- [x] Add video thumbnail
+
+### Stripe Payment Integration
+- [x] Add Stripe feature to project
+- [x] Create subscription tiers (Free, Pro, Enterprise)
+- [x] Implement checkout flow
+- [x] Add subscription management
+- [x] Create billing history page
+- [x] Implement usage limits per tier
+- [x] Add upgrade/downgrade functionality
+
+### Admin Stripe Key Management
+- [x] Add Stripe keys table to database
+- [x] Create admin panel for key management
+- [x] Implement key encryption/decryption
+- [x] Add key validation testing
+- [x] Create webhook configuration UI
+
+### Onboarding Wizard
+- [x] Create onboarding state tracking
+- [x] Design step-by-step wizard UI
+- [x] Add welcome screen
+- [x] Add project creation guide
+- [x] Add chat interface tutorial
+- [x] Add feature highlights
+- [x] Implement skip/complete functionality
+- [x] Track onboarding completion
