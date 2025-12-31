@@ -102,9 +102,9 @@
 - [x] Multi-language support (EN/JA)
 
 ### GitHub Submission
-- [ ] Create new repository
-- [ ] Push all code to GitHub
-- [ ] Add README documentation
+- [x] Create new repository
+- [x] Push all code to GitHub
+- [x] Add README documentation
 
 ## Bugs & Issues
 (None yet)
