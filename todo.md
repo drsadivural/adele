@@ -1,4 +1,4 @@
-# AppForge - AI-Powered No-Code Application Builder
+# ADELE - AI-Powered No-Code Application Builder
 
 ## Core Features
 
@@ -66,6 +66,45 @@
 - [x] Deployment instructions
 - [x] Architecture diagrams
 
+## New Features (Phase 2)
+
+### Rebranding
+- [x] Change name from AppForge to ADELE
+- [x] Add new logo with transparent background
+- [x] Update all branding references
+
+### Template Library
+- [x] Create template data model
+- [x] Add pre-built templates (CRM, Blog, E-commerce, etc.)
+- [x] Template preview and selection UI
+- [x] One-click template deployment
+
+### Real-time Collaboration
+- [x] WebSocket server setup
+- [x] Live cursor presence
+- [x] Real-time code sync
+- [x] User presence indicators
+- [x] Collaborative editing
+
+### Version Control UI
+- [x] Visual commit history
+- [x] Diff viewer
+- [x] Branch visualization
+- [x] Rollback functionality
+- [x] Version comparison
+
+### Full Hands-free Voice Control
+- [x] Continuous voice listening mode
+- [x] Voice command recognition
+- [x] Conversational coding interface
+- [x] Voice feedback/responses
+- [x] Command confirmation system
+- [x] Multi-language support (EN/JA)
+
+### GitHub Submission
+- [ ] Create new repository
+- [ ] Push all code to GitHub
+- [ ] Add README documentation
+
 ## Bugs & Issues
 (None yet)
-

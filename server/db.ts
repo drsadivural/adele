@@ -8,7 +8,11 @@ import {
   generatedFiles, InsertGeneratedFile, GeneratedFile,
   feedback, InsertFeedback,
   templates, InsertTemplate,
-  deployments, InsertDeployment
+  deployments, InsertDeployment,
+  appTemplates, InsertAppTemplate, AppTemplate,
+  projectVersions, InsertProjectVersion, ProjectVersion,
+  collaborationSessions, InsertCollaborationSession, CollaborationSession,
+  voiceCommands, InsertVoiceCommand, VoiceCommand
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -278,7 +282,7 @@ export async function getTemplatesByCategory(category: string) {
     .orderBy(desc(templates.usageCount));
 }
 
-export async function incrementTemplateUsage(id: number): Promise<void> {
+export async function incrementCodeTemplateUsage(id: number): Promise<void> {
   const db = await getDb();
   if (!db) return;
   
@@ -324,4 +328,160 @@ export async function getLatestDeployment(projectId: number) {
     .orderBy(desc(deployments.createdAt))
     .limit(1);
   return result[0] || null;
+}
+
+// ============ APP TEMPLATE QUERIES ============
+
+export async function getAppTemplates(): Promise<AppTemplate[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(appTemplates)
+    .where(eq(appTemplates.isActive, true))
+    .orderBy(desc(appTemplates.usageCount));
+}
+
+export async function getAppTemplateBySlug(slug: string): Promise<AppTemplate | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(appTemplates)
+    .where(and(eq(appTemplates.slug, slug), eq(appTemplates.isActive, true)))
+    .limit(1);
+  return result[0] || null;
+}
+
+export async function getAppTemplatesByCategory(category: string): Promise<AppTemplate[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(appTemplates)
+    .where(and(eq(appTemplates.category, category as any), eq(appTemplates.isActive, true)))
+    .orderBy(desc(appTemplates.usageCount));
+}
+
+export async function incrementTemplateUsage(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(appTemplates)
+    .set({ usageCount: sql`${appTemplates.usageCount} + 1` })
+    .where(eq(appTemplates.id, id));
+}
+
+// ============ PROJECT VERSION QUERIES ============
+
+export async function createProjectVersion(version: InsertProjectVersion): Promise<ProjectVersion | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(projectVersions).values(version);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(projectVersions).where(eq(projectVersions.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getProjectVersions(projectId: number): Promise<ProjectVersion[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(projectVersions)
+    .where(eq(projectVersions.projectId, projectId))
+    .orderBy(desc(projectVersions.versionNumber));
+}
+
+export async function getProjectVersion(projectId: number, versionNumber: number): Promise<ProjectVersion | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(projectVersions)
+    .where(and(
+      eq(projectVersions.projectId, projectId),
+      eq(projectVersions.versionNumber, versionNumber)
+    ))
+    .limit(1);
+  return result[0] || null;
+}
+
+export async function getLatestProjectVersion(projectId: number): Promise<ProjectVersion | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(projectVersions)
+    .where(eq(projectVersions.projectId, projectId))
+    .orderBy(desc(projectVersions.versionNumber))
+    .limit(1);
+  return result[0] || null;
+}
+
+// ============ COLLABORATION SESSION QUERIES ============
+
+export async function createCollaborationSession(session: InsertCollaborationSession): Promise<CollaborationSession | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(collaborationSessions).values(session);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(collaborationSessions).where(eq(collaborationSessions.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function getActiveCollaborators(projectId: number): Promise<CollaborationSession[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(collaborationSessions)
+    .where(and(
+      eq(collaborationSessions.projectId, projectId),
+      eq(collaborationSessions.isActive, true)
+    ));
+}
+
+export async function updateCollaboratorCursor(
+  sessionId: string, 
+  cursorPosition: { file?: string; line?: number; column?: number }
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(collaborationSessions)
+    .set({ cursorPosition, lastActivity: new Date() })
+    .where(eq(collaborationSessions.sessionId, sessionId));
+}
+
+export async function endCollaborationSession(sessionId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(collaborationSessions)
+    .set({ isActive: false })
+    .where(eq(collaborationSessions.sessionId, sessionId));
+}
+
+// ============ VOICE COMMAND QUERIES ============
+
+export async function createVoiceCommand(command: InsertVoiceCommand): Promise<VoiceCommand | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(voiceCommands).values(command);
+  const insertId = result[0].insertId;
+  const created = await db.select().from(voiceCommands).where(eq(voiceCommands.id, insertId)).limit(1);
+  return created[0] || null;
+}
+
+export async function updateVoiceCommand(id: number, updates: Partial<InsertVoiceCommand>): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(voiceCommands).set(updates).where(eq(voiceCommands.id, id));
+}
+
+export async function getVoiceCommandsByProject(projectId: number): Promise<VoiceCommand[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(voiceCommands)
+    .where(eq(voiceCommands.projectId, projectId))
+    .orderBy(desc(voiceCommands.createdAt));
 }

@@ -175,3 +175,106 @@ export const deployments = mysqlTable("deployments", {
 
 export type Deployment = typeof deployments.$inferSelect;
 export type InsertDeployment = typeof deployments.$inferInsert;
+
+/**
+ * Application templates table - pre-built app templates
+ */
+export const appTemplates = mysqlTable("app_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  description: text("description"),
+  category: mysqlEnum("category", ["crm", "ecommerce", "dashboard", "social", "blog", "portfolio", "saas", "marketplace", "inventory", "booking"]).notNull(),
+  thumbnail: varchar("thumbnail", { length: 500 }),
+  previewUrl: varchar("previewUrl", { length: 500 }),
+  techStack: json("techStack").$type<{
+    frontend: string;
+    backend: string;
+    database: string;
+  }>(),
+  features: json("features").$type<string[]>(),
+  files: json("files").$type<Array<{
+    path: string;
+    content: string;
+    type: string;
+  }>>(),
+  config: json("config").$type<{
+    envVars?: string[];
+    dependencies?: { frontend: string[]; backend: string[] };
+  }>(),
+  usageCount: int("usageCount").default(0).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AppTemplate = typeof appTemplates.$inferSelect;
+export type InsertAppTemplate = typeof appTemplates.$inferInsert;
+
+/**
+ * Project versions table - version control for projects
+ */
+export const projectVersions = mysqlTable("project_versions", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  versionNumber: int("versionNumber").notNull(),
+  commitMessage: text("commitMessage"),
+  snapshot: json("snapshot").$type<Array<{
+    filePath: string;
+    content: string;
+    fileType: string;
+  }>>(),
+  diff: json("diff").$type<Array<{
+    filePath: string;
+    type: "added" | "modified" | "deleted";
+    additions: number;
+    deletions: number;
+  }>>(),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ProjectVersion = typeof projectVersions.$inferSelect;
+export type InsertProjectVersion = typeof projectVersions.$inferInsert;
+
+/**
+ * Collaboration sessions table - real-time collaboration
+ */
+export const collaborationSessions = mysqlTable("collaboration_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  userId: int("userId").notNull(),
+  sessionId: varchar("sessionId", { length: 100 }).notNull(),
+  cursorPosition: json("cursorPosition").$type<{
+    file?: string;
+    line?: number;
+    column?: number;
+  }>(),
+  isActive: boolean("isActive").default(true).notNull(),
+  lastActivity: timestamp("lastActivity").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CollaborationSession = typeof collaborationSessions.$inferSelect;
+export type InsertCollaborationSession = typeof collaborationSessions.$inferInsert;
+
+/**
+ * Voice commands table - tracks voice interactions
+ */
+export const voiceCommands = mysqlTable("voice_commands", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  userId: int("userId").notNull(),
+  transcription: text("transcription").notNull(),
+  intent: varchar("intent", { length: 100 }),
+  action: json("action").$type<{
+    type: string;
+    params: Record<string, unknown>;
+  }>(),
+  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  response: text("response"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type VoiceCommand = typeof voiceCommands.$inferSelect;
+export type InsertVoiceCommand = typeof voiceCommands.$inferInsert;

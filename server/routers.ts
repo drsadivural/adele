@@ -7,6 +7,8 @@ import { TRPCError } from "@trpc/server";
 import * as db from "./db";
 import { createAgentSystem, AgentTask } from "./agents";
 import { invokeLLM } from "./_core/llm";
+import * as collaboration from "./collaboration";
+import * as voiceControl from "./voiceControl";
 
 // Initialize the agent system
 const agentSystem = createAgentSystem();
@@ -96,6 +98,60 @@ export const appRouter = router({
         
         await db.deleteProject(input.id);
         return { success: true };
+      }),
+
+    createFromTemplate: protectedProcedure
+      .input(z.object({
+        templateSlug: z.string(),
+        name: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // Get template by slug
+        const template = await db.getAppTemplateBySlug(input.templateSlug);
+        if (!template) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+        }
+
+        // Create project from template
+        const projectName = input.name || `${template.name} Project`;
+        const project = await db.createProject({
+          userId: ctx.user.id,
+          name: projectName,
+          description: template.description || null,
+          appType: template.category,
+          status: "draft",
+          techStack: template.techStack ? { ...template.techStack, deployment: 'docker' } : null,
+        });
+
+        if (!project) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to create project" });
+        }
+
+        // Copy template files to project
+        if (template.files && Array.isArray(template.files)) {
+          for (const file of template.files) {
+            await db.createGeneratedFile({
+              projectId: project.id,
+              filePath: file.path,
+              fileName: file.path.split('/').pop() || 'unknown',
+              fileType: file.type,
+              content: file.content,
+              category: 'frontend',
+            });
+          }
+        }
+
+        // Update template usage count
+        await db.incrementTemplateUsage(template.id);
+
+        // Create initial system message
+        await db.createMessage({
+          projectId: project.id,
+          role: "system",
+          content: `Project "${projectName}" created from the "${template.name}" template. The template includes: ${template.features?.join(', ') || 'various features'}. You can customize it further by describing what changes you'd like to make.`,
+        });
+
+        return project;
       }),
   }),
 
@@ -385,6 +441,272 @@ Keep the response concise and highlight the key actions taken.`;
       .input(z.object({ category: z.string() }))
       .query(async ({ input }) => {
         return db.getTemplatesByCategory(input.category);
+      }),
+  }),
+
+  // ============ COLLABORATION ROUTES ============
+  collaboration: router({
+    join: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const project = await db.getProjectById(input.projectId);
+        if (!project) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+        }
+        
+        return collaboration.joinCollaboration(
+          input.projectId,
+          ctx.user.id,
+          ctx.user.name || ctx.user.email || "Anonymous"
+        );
+      }),
+
+    leave: protectedProcedure
+      .input(z.object({ projectId: z.number(), sessionId: z.string() }))
+      .mutation(async ({ input }) => {
+        await collaboration.leaveCollaboration(input.projectId, input.sessionId);
+        return { success: true };
+      }),
+
+    updateCursor: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        sessionId: z.string(),
+        cursorPosition: z.object({
+          file: z.string().optional(),
+          line: z.number().optional(),
+          column: z.number().optional(),
+        }),
+      }))
+      .mutation(async ({ input }) => {
+        await collaboration.updateCursorPosition(
+          input.projectId,
+          input.sessionId,
+          input.cursorPosition
+        );
+        return { success: true };
+      }),
+
+    getCollaborators: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ input }) => {
+        return collaboration.getActiveCollaborators(input.projectId);
+      }),
+
+    broadcastChat: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        sessionId: z.string(),
+        message: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        collaboration.broadcastChatMessage(
+          input.projectId,
+          input.sessionId,
+          ctx.user.id,
+          ctx.user.name || "Anonymous",
+          input.message
+        );
+        return { success: true };
+      }),
+  }),
+
+  // ============ VERSION CONTROL ROUTES ============
+  version: router({
+    list: protectedProcedure
+      .input(z.object({ projectId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const project = await db.getProjectById(input.projectId);
+        if (!project || project.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+        }
+        
+        return db.getProjectVersions(input.projectId);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        commitMessage: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const project = await db.getProjectById(input.projectId);
+        if (!project || project.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+        }
+        
+        // Get current files
+        const files = await db.getGeneratedFilesByProjectId(input.projectId);
+        
+        // Get latest version number
+        const latestVersion = await db.getLatestProjectVersion(input.projectId);
+        const newVersionNumber = (latestVersion?.versionNumber || 0) + 1;
+        
+        // Create snapshot
+        const snapshot = files.map(f => ({
+          filePath: f.filePath,
+          content: f.content,
+          fileType: f.fileType,
+        }));
+        
+        // Calculate diff (simplified)
+        const diff = files.map(f => ({
+          filePath: f.filePath,
+          type: "modified" as const,
+          additions: f.content.split('\n').length,
+          deletions: 0,
+        }));
+        
+        const version = await db.createProjectVersion({
+          projectId: input.projectId,
+          versionNumber: newVersionNumber,
+          commitMessage: input.commitMessage || `Version ${newVersionNumber}`,
+          snapshot,
+          diff,
+          createdBy: ctx.user.id,
+        });
+        
+        return version;
+      }),
+
+    get: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        versionNumber: z.number(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const project = await db.getProjectById(input.projectId);
+        if (!project || project.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+        }
+        
+        return db.getProjectVersion(input.projectId, input.versionNumber);
+      }),
+
+    rollback: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        versionNumber: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const project = await db.getProjectById(input.projectId);
+        if (!project || project.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+        }
+        
+        const version = await db.getProjectVersion(input.projectId, input.versionNumber);
+        if (!version || !version.snapshot) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Version not found" });
+        }
+        
+        // Deactivate current files
+        const currentFiles = await db.getGeneratedFilesByProjectId(input.projectId);
+        for (const file of currentFiles) {
+          await db.updateGeneratedFile(file.id, { isActive: false });
+        }
+        
+        // Restore files from snapshot
+        for (const file of version.snapshot) {
+          await db.createGeneratedFile({
+            projectId: input.projectId,
+            filePath: file.filePath,
+            fileName: file.filePath.split('/').pop() || 'unknown',
+            fileType: file.fileType,
+            content: file.content,
+            category: 'frontend',
+            isActive: true,
+          });
+        }
+        
+        return { success: true, restoredVersion: input.versionNumber };
+      }),
+  }),
+
+  // ============ VOICE CONTROL ROUTES ============
+  voice: router({
+    transcribe: protectedProcedure
+      .input(z.object({
+        audioUrl: z.string(),
+        language: z.enum(["en", "ja"]).default("en"),
+      }))
+      .mutation(async ({ input }) => {
+        return voiceControl.transcribeVoice(input.audioUrl, input.language);
+      }),
+
+    processCommand: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        transcription: z.string(),
+        language: z.enum(["en", "ja"]).default("en"),
+        currentFile: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const project = await db.getProjectById(input.projectId);
+        if (!project) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+        }
+
+        const result = await voiceControl.processVoiceCommand(
+          input.transcription,
+          {
+            projectId: input.projectId,
+            projectName: project.name,
+            currentFile: input.currentFile,
+            language: input.language,
+          }
+        );
+
+        // Execute the action
+        const execution = await voiceControl.executeVoiceAction(
+          input.projectId,
+          ctx.user.id,
+          result
+        );
+
+        return {
+          ...result,
+          execution,
+        };
+      }),
+
+    getProactiveSuggestions: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        language: z.enum(["en", "ja"]).default("en"),
+      }))
+      .query(async ({ input }) => {
+        const project = await db.getProjectById(input.projectId);
+        if (!project) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+        }
+
+        return voiceControl.getProactiveSuggestions({
+          projectId: input.projectId,
+          projectName: project.name,
+          language: input.language,
+        });
+      }),
+
+    getProactiveSpeech: protectedProcedure
+      .input(z.object({
+        projectId: z.number(),
+        trigger: z.enum(["idle", "completion", "error", "greeting"]),
+        language: z.enum(["en", "ja"]).default("en"),
+      }))
+      .query(async ({ input }) => {
+        const project = await db.getProjectById(input.projectId);
+        if (!project) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+        }
+
+        return voiceControl.generateProactiveSpeech(
+          {
+            projectId: input.projectId,
+            projectName: project.name,
+            language: input.language,
+          },
+          input.trigger
+        );
       }),
   }),
 });

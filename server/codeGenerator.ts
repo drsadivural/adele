@@ -1,5 +1,5 @@
 /**
- * Code Generation Engine for AppForge
+ * Code Generation Engine for ADELE
  * Generates production-ready code templates for various application types
  */
 

@@ -57,11 +57,11 @@
   --chart-5: oklch(0.55 0.2 25);
   --radius: 0.75rem;
   
-  /* AppForge custom colors */
-  --appforge-blue: oklch(0.6 0.2 250);
-  --appforge-purple: oklch(0.55 0.25 290);
-  --appforge-gradient-start: oklch(0.6 0.2 250);
-  --appforge-gradient-end: oklch(0.55 0.25 290);
+  /* ADELE custom colors */
+  --adele-blue: oklch(0.6 0.2 250);
+  --adele-purple: oklch(0.55 0.25 290);
+  --adele-gradient-start: oklch(0.6 0.2 250);
+  --adele-gradient-end: oklch(0.55 0.25 290);
   
   /* Agent colors */
   --agent-coordinator: oklch(0.6 0.2 250);
@@ -102,10 +102,10 @@
   --sidebar-primary: oklch(0.7 0.2 260);
   --sidebar-primary-foreground: oklch(0.1 0 0);
   
-  --appforge-blue: oklch(0.7 0.18 250);
-  --appforge-purple: oklch(0.65 0.22 290);
-  --appforge-gradient-start: oklch(0.7 0.18 250);
-  --appforge-gradient-end: oklch(0.65 0.22 290);
+  --adele-blue: oklch(0.7 0.18 250);
+  --adele-purple: oklch(0.65 0.22 290);
+  --adele-gradient-start: oklch(0.7 0.18 250);
+  --adele-gradient-end: oklch(0.65 0.22 290);
   --background: oklch(0.141 0.005 285.823);
   --foreground: oklch(0.85 0.005 65);
   --card: oklch(0.21 0.006 285.885);
@@ -224,12 +224,12 @@
   /* Gradient text */
   .gradient-text {
     @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, var(--appforge-gradient-start), var(--appforge-gradient-end));
+    background-image: linear-gradient(135deg, var(--adele-gradient-start), var(--adele-gradient-end));
   }
 
   /* Gradient background */
   .gradient-bg {
-    background: linear-gradient(135deg, var(--appforge-gradient-start), var(--appforge-gradient-end));
+    background: linear-gradient(135deg, var(--adele-gradient-start), var(--adele-gradient-end));
   }
 
   /* Subtle gradient background */

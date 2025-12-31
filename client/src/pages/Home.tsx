@@ -13,7 +13,11 @@ import {
   Zap,
   Layers,
   Download,
-  Play
+  Play,
+  Mic,
+  GitBranch,
+  Users,
+  LayoutTemplate
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -47,6 +51,26 @@ const features = [
     icon: Download,
     title: "Download & Deploy",
     description: "Get complete source code, Docker configs, and one-click deployment to cloud infrastructure."
+  },
+  {
+    icon: Mic,
+    title: "Hands-Free Voice Control",
+    description: "Build applications entirely with voice commands. Conversational coding at its finest."
+  },
+  {
+    icon: GitBranch,
+    title: "Version Control",
+    description: "Visual git-like interface with commit history, diff viewer, and easy rollback functionality."
+  },
+  {
+    icon: Users,
+    title: "Real-Time Collaboration",
+    description: "Work together with your team in real-time with live cursors and instant sync."
+  },
+  {
+    icon: LayoutTemplate,
+    title: "Template Library",
+    description: "Start fast with pre-built templates for CRM, e-commerce, dashboards, and more."
   }
 ];
 
@@ -59,10 +83,8 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
         <div className="container flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-semibold text-lg">AppForge</span>
+            <img src="/adele-logo.png" alt="ADELE" className="w-10 h-10 object-contain" />
+            <span className="font-semibold text-lg">ADELE</span>
           </Link>
           
           <div className="flex items-center gap-4">
@@ -107,7 +129,7 @@ export default function Home() {
             </h1>
             
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-              Describe your application in plain English. Our multi-agent AI system generates 
+              Describe your application in plain English or use voice commands. ADELE's multi-agent AI system generates 
               production-ready code, databases, security, and deployment configs.
             </p>
             
@@ -190,11 +212,11 @@ export default function Home() {
               Everything You Need
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              From idea to deployment, AppForge handles every aspect of application development.
+              From idea to deployment, ADELE handles every aspect of application development.
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
             {features.map((feature, index) => (
               <motion.div
                 key={feature.title}
@@ -207,8 +229,8 @@ export default function Home() {
                 <div className="w-12 h-12 rounded-xl gradient-bg flex items-center justify-center mb-4">
                   <feature.icon className="w-6 h-6 text-white" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
+                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                <p className="text-sm text-muted-foreground">{feature.description}</p>
               </motion.div>
             ))}
           </div>
@@ -229,7 +251,7 @@ export default function Home() {
               Ready to build your next app?
             </h2>
             <p className="text-lg text-muted-foreground mb-8">
-              Join thousands of developers using AppForge to build applications faster than ever.
+              Join thousands of developers using ADELE to build applications faster than ever.
             </p>
             {isAuthenticated ? (
               <Link href="/dashboard">
@@ -254,10 +276,8 @@ export default function Home() {
       <footer className="py-8 px-4 border-t border-border">
         <div className="container flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md gradient-bg flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-medium">AppForge</span>
+            <img src="/adele-logo.png" alt="ADELE" className="w-8 h-8 object-contain" />
+            <span className="font-medium">ADELE</span>
           </div>
           <p className="text-sm text-muted-foreground">
             AI-Powered No-Code Application Builder

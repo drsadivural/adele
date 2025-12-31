@@ -30,10 +30,11 @@ import {
   User,
   Settings
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
+import VoiceControl from "@/components/VoiceControl";
 
 // Agent icons mapping
 const agentIcons: Record<string, { icon: React.ElementType; color: string }> = {
@@ -55,6 +56,7 @@ export default function ProjectBuilder() {
   const [isRecording, setIsRecording] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("code");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -420,6 +422,29 @@ export default function ProjectBuilder() {
           </Tabs>
         </div>
       </div>
+
+      {/* Voice Control */}
+      <VoiceControl 
+        projectId={projectId} 
+        onCommand={(action) => {
+          // Handle voice commands
+          if (action.data) {
+            const data = action.data as { redirect?: string; action?: string; message?: string };
+            if (data.redirect) {
+              setLocation(data.redirect);
+            } else if (data.action === "send_to_chat" && data.message) {
+              setMessage(data.message);
+              handleSend();
+            } else if (data.action === "show_preview") {
+              // setActiveTab would need to be wired to Tabs - using toast for now
+              toast.info("Showing preview");
+            } else if (data.action === "toggle_theme") {
+              // Theme toggle would be handled by ThemeContext
+              toast.info("Theme toggle coming soon");
+            }
+          }
+        }}
+      />
     </div>
   );
 }

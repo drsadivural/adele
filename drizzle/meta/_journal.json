@@ -15,6 +15,13 @@
       "when": 1767141106907,
       "tag": "0001_ambitious_surge",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1767144591231,
+      "tag": "0002_futuristic_misty_knight",
+      "breakpoints": true
     }
   ]
 }

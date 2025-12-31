@@ -77,10 +77,8 @@ export default function Dashboard() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
         <div className="container flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-semibold text-lg">AppForge</span>
+            <img src="/adele-logo.png" alt="ADELE" className="w-10 h-10 object-contain" />
+            <span className="font-semibold text-lg">ADELE</span>
           </Link>
           
           <div className="flex items-center gap-4">
@@ -209,19 +207,19 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card className="glass-card">
-              <CardContent className="p-6 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center">
-                  <Rocket className="w-6 h-6 text-green-500" />
-                </div>
-                <div>
-                  <h3 className="font-semibold">
-                    {projects?.filter(p => p.status === "deployed").length || 0} Deployed
-                  </h3>
-                  <p className="text-sm text-muted-foreground">Live applications</p>
-                </div>
-              </CardContent>
-            </Card>
+<Link href="/templates">
+              <Card className="glass-card hover:shadow-apple-lg transition-apple cursor-pointer group">
+                <CardContent className="p-6 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Rocket className="w-6 h-6 text-purple-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Templates</h3>
+                    <p className="text-sm text-muted-foreground">Start from a template</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
           </motion.div>
 
           {/* Projects List */}
